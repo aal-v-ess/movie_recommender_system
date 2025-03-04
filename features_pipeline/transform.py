@@ -1,6 +1,33 @@
 import pandas as pd
 from pandas.api.types import is_numeric_dtype, is_categorical_dtype
-from typing import Dict, Any, Optional, Union, Callable, List
+from typing import Dict, Any, Optional
+import utils
+
+logger = utils.get_logger(__name__)
+
+def agg_user_movie_tags(
+    df: pd.DataFrame
+) -> pd.DataFrame:
+    """ Aggregates user movie tags per movie
+    
+    Parameters:
+    -----------
+    df : pandas DataFrame
+        The DataFrame to process
+
+    Returns:
+    --------
+    pandas DataFrame
+        The DataFrame with one row per user-movie with aggregated tags
+    """
+    df_return = (
+        df.groupby(["userId", "movieId"])["tag"]
+        .apply(", ".join)
+        .reset_index()
+        .rename(columns={"tag": "user_movie_tags"})
+        .assign(user_movie_tags=lambda x: x["user_movie_tags"].str.lower())
+    )
+    return df_return
 
 
 def handle_missing_values(
@@ -43,10 +70,11 @@ def handle_missing_values(
     # Calculate NaN percentages
     nan_percentage = df_processed.isna().mean() * 100
     nan_columns = nan_percentage[nan_percentage > 0]
+
     
-    if verbose and not nan_columns.empty:
-        print("Columns with NaN values and their percentages:")
-        print(nan_columns.to_string())
+    if not nan_columns.empty:
+        logger.info("Columns with NaN values and their percentages:")
+        logger.info(nan_columns.to_string())
     
     # If no column rules provided, initialize empty dict
     if column_rules is None:
@@ -65,10 +93,15 @@ def handle_missing_values(
     
     # Process columns based on NaN percentage
     for col, percent in nan_percentage.items():
+
+        if percent == 0:
+            print(f"No NaN values in column: {col}. Skipping to next column.")
+            continue
+
         if percent < nan_threshold:
-            print(f"Dropping NaN subset in column: {col} (NaN {percent:.3f}%) because of NaN threshold {nan_threshold}")
+            logger.info(f"Dropping NaN subset in column: {col} (NaN {percent:.3f}%) because of NaN threshold {nan_threshold}")
             df_processed.dropna(subset=[col], inplace=True)
-            break
+            continue
         
         # Skip columns that don't exist in the DataFrame
         if col not in df_processed.columns:
@@ -91,7 +124,7 @@ def handle_missing_values(
                 strategy = strategies[rule.lower()]
                 # Check if strategy is applicable (e.g., mean/median for numeric only)
                 if (rule.lower() in ['mean', 'median'] and not is_numeric):
-                    print(f"Warning: Cannot apply {rule} to non-numeric column {col}. Using mode instead.")
+                    logger.info(f"Warning: Cannot apply {rule} to non-numeric column {col}. Using mode instead.")
                     fill_value = strategies['mode'](col_data)
                 else:
                     fill_value = strategy(col_data)
@@ -101,7 +134,7 @@ def handle_missing_values(
                 try:
                     fill_value = rule(col_data)
                 except Exception as e:
-                    print(f"Error applying custom function to {col}: {e}")
+                    logger.info(f"Error applying custom function to {col}: {e}")
                     # Fall back to default
                     fill_value = fill_numeric if is_numeric else fill_categorical
                     
@@ -123,7 +156,7 @@ def handle_missing_values(
                     fill_value = fill_categorical
         
         # Apply the fill value
-        print(f"Filling NaN in column: {col} (NaN {percent:.3f}%) with {fill_value}")
+        logger.info(f"Filling NaN in column: {col} (NaN {percent:.3f}%) with {fill_value}")
         
         df_processed[col].fillna(value=fill_value, inplace=True)
     
@@ -131,7 +164,8 @@ def handle_missing_values(
 
 
 def pipeline_transform(df_ratings: pd.DataFrame, df_movies: pd.DataFrame, df_tags: pd.DataFrame) -> pd.DataFrame:
-    df_ratings_tags = df_ratings.merge(df_tags, on=["userId", "movieId"], how="left")
+    df_tags_agg = agg_user_movie_tags(df_tags)
+    df_ratings_tags = df_ratings.merge(df_tags_agg, on=["userId", "movieId"], how="left")
     # Define column-specific rules
     column_rules = {
         'rating': 0,                 # Use median for ratings
@@ -139,7 +173,7 @@ def pipeline_transform(df_ratings: pd.DataFrame, df_movies: pd.DataFrame, df_tag
         'category': 'Unknown',              # Use specific value for category
         'views': lambda x: x.mean() * 0.8   # Use custom function (80% of mean)
     }
-    df_ratings_tags_clean = handle_missing_values(df_ratings_tags, column_rules=column_rules)
-    df_preprocess = df_ratings_tags_clean.merge(df_movies, on="movieId", how='left')
-    df_preprocess_clean = handle_missing_values(df_preprocess, column_rules=column_rules)
-    return df_preprocess_clean
+    df_preprocess = df_ratings_tags.merge(df_movies, on="movieId", how='left')
+    df_return = handle_missing_values(df_preprocess, column_rules=column_rules)
+    df_return.columns = [col.lower() for col in df_return.columns]
+    return df_return

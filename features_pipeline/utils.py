@@ -1,8 +1,9 @@
-import json
 import logging
-from pathlib import Path
+import yaml
+from dotenv import load_dotenv
+import os
 
-import settings
+load_dotenv()
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -21,37 +22,14 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-# def save_json(data: dict, file_name: str, save_dir: str = settings.OUTPUT_DIR):
-#     """
-#     Save a dictionary as a JSON file.
+def load_config(config_path: str):
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
 
-#     Args:
-#         data: data to save.
-#         file_name: Name of the JSON file.
-#         save_dir: Directory to save the JSON file.
+    config["HOPSWORKS_API_KEY"] = os.getenv("HOPSWORKS_API_KEY")
 
-#     Returns: None
-#     """
-
-#     data_path = Path(save_dir) / file_name
-#     with open(data_path, "w") as f:
-#         json.dump(data, f)
+    if not config["HOPSWORKS_API_KEY"]:
+        raise ValueError("API key not found! Set it in a .env file or environment variable.")
 
 
-# def load_json(file_name: str, save_dir: str = settings.OUTPUT_DIR) -> dict:
-#     """
-#     Load a JSON file.
-
-#     Args:
-#         file_name: Name of the JSON file.
-#         save_dir: Directory of the JSON file.
-
-#     Returns: Dictionary with the data.
-#     """
-
-#     data_path = Path(save_dir) / file_name
-#     if not data_path.exists():
-#         raise FileNotFoundError(f"Cached JSON from {data_path} does not exist.")
-
-#     with open(data_path, "r") as f:
-#         return json.load(f)
+    return config

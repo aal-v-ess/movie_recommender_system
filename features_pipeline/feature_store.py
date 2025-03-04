@@ -1,40 +1,61 @@
 import hopsworks
 import pandas as pd
-from datetime import datetime
-
-# Connect to Hopsworks
-project = hopsworks.login()
-fs = project.get_feature_store()
+from hsfs.feature_group import FeatureGroup
 
 
-def register_features(features_df, version=None):
-    """Register features to Hopsworks Feature Store with version control"""
+def to_feature_store(
+    data: pd.DataFrame,
+    feature_store_name: str = "movie_rec_sys",
+    feature_store_api_key: str = None,
+    feature_group_version: int = None,
+) -> FeatureGroup:
+    """
+    This function takes in a pandas DataFrame and a validation expectation suite,
+    performs validation on the data using the suite, and then saves the data to a
+    feature store in the feature store.
+    """
+
+    # Connect to feature store.
+    project = hopsworks.login(
+        api_key_value=feature_store_api_key,
+        project=feature_store_name,
+    )
+    fs = project.get_feature_store()
+
     # Check if feature group exists
     try:
-        existing_fg = fs.get_feature_group("movie_rec_system")
+        existing_fg = fs.get_feature_group(feature_store_name)
         # If we want a new version, increment the version number
-        if version is None:
-            version = existing_fg.version + 1
+        if feature_group_version is None:
+            feature_group_version = existing_fg.version + 1
     except:
         # Feature group doesn't exist yet, start with version 1
-        version = 1 if version is None else version
-    
-    # Create or get feature group
-    feature_group = fs.create_feature_group(
-        name="movie_rec_system",
-        version=version,
-        description=f"Movie recommender system features v{version} created on {datetime.now().strftime('%Y-%m-%d')}",
-        primary_key=["userId"],
-        online_enabled=True,
-        statistics_config={"enabled": True, "histograms": True},
-        event_time="last_active"  # Enable time travel with event time
+        feature_group_version = 1 if feature_group_version is None else feature_group_version
+
+    # Create feature group.
+    movie_feature_group = fs.get_or_create_feature_group(
+        name=feature_store_name,
+        version=feature_group_version,
+        description="MovieLens cleaned data for hybrid recommender system.",
+        primary_key=["userid", "movieid"],
+        online_enabled=False,
     )
-    
-    # Insert data
-    feature_group.insert(features_df)
-    
-    # Log metadata about this version
-    feature_group.add_tag({"version_info": f"Added features: {', '.join(features_df.columns)}"})
-    
-    print(f"Successfully registered features as version {version}")
-    return feature_group
+    # Upload data.
+    movie_feature_group.insert(
+        features=data,
+        overwrite=False,
+        write_options={
+            "wait_for_job": True,
+        },
+    )
+
+    # Update statistics.
+    movie_feature_group.statistics_config = {
+        "enabled": True,
+        "histograms": True,
+        "correlations": True,
+    }
+    movie_feature_group.update_statistics_config()
+    movie_feature_group.compute_statistics()
+
+    return movie_feature_group

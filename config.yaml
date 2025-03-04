@@ -1,0 +1,16 @@
+###
+# Configuration file
+###
+
+
+# Feature pipeline
+DATA_PATH: "..\\data\\"
+RATINGS_TABLE_NAME: "ratings.csv"
+MOVIES_TABLE_NAME: "movies.csv"
+TAGS_TABLE_NAME: "tags.csv"
+DROP_COLUMNS:
+  - "timestamp"
+feature_store:
+  name: "movie_rec_sys"
+  version: 1
+  

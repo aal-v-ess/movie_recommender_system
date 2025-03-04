@@ -1,6 +1,7 @@
 import pandas as pd
 from pandas.errors import EmptyDataError
 from typing import List
+import os
 
 import utils
 
@@ -13,7 +14,7 @@ def read_data(path: str,  file_name: str, drop_columns: List[str] = None) -> pd.
     Read the data from the CSV file
     """
     file_path = path + file_name
-    if not file_path.exists():
+    if not os.path.exists(file_path):
         logger.info(f"File not found: {file_path}")
     else:
         logger.info(f"Reading data from : {file_path}")
