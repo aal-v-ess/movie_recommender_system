@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 import pandas as pd
 from pathlib import Path
-from recommender_server import EnhancedRecommendationServer
+from movie_recommender_system.Notebooks.recommender_server import EnhancedRecommendationServer
 
 # The current implementation does not include caching.
 # In order to improve even more and be closer to real time recommendation this a next step.
