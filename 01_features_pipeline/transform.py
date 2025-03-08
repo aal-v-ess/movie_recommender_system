@@ -5,6 +5,7 @@ import utils
 
 logger = utils.get_logger(__name__)
 
+
 def agg_user_movie_tags(
     df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -163,6 +164,65 @@ def handle_missing_values(
     return df_processed
 
 
+def add_year_column(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds year column as integer from title string.
+
+    Parameters:
+    -----------
+    df : Movies pandas DataFrame
+        The DataFrame to process
+
+    Returns:
+    --------
+    pandas DataFrame
+        The DataFrame with additional year column based on title.
+    """
+    df_return = df.copy()
+    df_return["year"] = df_return.title.str[-6:].str.replace('(', '', regex=False).str.replace(')', '', regex=False)
+    df_return = df_return[df_return["year"].str.isdigit()]
+    df_return["year"] = df_return["year"].astype(int)
+    return df_return
+
+
+def transform_title_column(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transforms title column removing the year information.
+
+    Parameters:
+    -----------
+    df : Movies pandas DataFrame
+        The DataFrame to process
+
+    Returns:
+    --------
+    pandas DataFrame
+        The DataFrame with title column transformed.
+    """
+    df_return = df.copy()
+    df_return["title"] = df_return["title"].str[:-6]
+    return df_return
+
+
+def transform_genres_column(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transforms genres column separating the genres by comma.
+
+    Parameters:
+    -----------
+    df : Movies pandas DataFrame
+        The DataFrame to process
+
+    Returns:
+    --------
+    pandas DataFrame
+        The DataFrame with genres column transformed.
+    """
+    df_return = df.copy()
+    df_return["genres"] = df_return["genres"].str.replace("|", ", ", regex=False)
+    return df_return
+
+
 def pipeline_transform(df_ratings: pd.DataFrame, df_movies: pd.DataFrame, df_tags: pd.DataFrame) -> pd.DataFrame:
     df_tags_agg = agg_user_movie_tags(df_tags)
     df_ratings_tags = df_ratings.merge(df_tags_agg, on=["userId", "movieId"], how="left")
@@ -173,7 +233,10 @@ def pipeline_transform(df_ratings: pd.DataFrame, df_movies: pd.DataFrame, df_tag
         'category': 'Unknown',              # Use specific value for category
         'views': lambda x: x.mean() * 0.8   # Use custom function (80% of mean)
     }
-    df_preprocess = df_ratings_tags.merge(df_movies, on="movieId", how='left')
+    df_movies_genre = add_year_column(df_movies)
+    df_movies_transf_title = transform_title_column(df_movies_genre)
+    df_movies_transformed = transform_genres_column(df_movies_transf_title)
+    df_preprocess = df_ratings_tags.merge(df_movies_transformed, on="movieId", how='left')
     df_return = handle_missing_values(df_preprocess, column_rules=column_rules)
     df_return.columns = [col.lower() for col in df_return.columns]
     return df_return

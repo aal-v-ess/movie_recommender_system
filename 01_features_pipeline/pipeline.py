@@ -31,7 +31,12 @@ def run_features_pipeline():
 
     # Write to feature store
     logger.info("Writing to feature store...")
-    feature_group = to_feature_store(data=df_transform, feature_store_api_key=config["HOPSWORKS_API_KEY"], feature_store_name=config["feature_store"]["name"], feature_group_version=config["feature_store"]["version"])    
+    feature_group = to_feature_store(
+        data=df_transform, 
+        feature_store_api_key=config["HOPSWORKS_API_KEY"], 
+        feature_store_name=config["feature_store"]["name"], 
+        feature_group_version=config["feature_store"]["version"]
+    )    
     logger.info(f"Feature pipeline complete. Created feature group version {feature_group.version}")
 
 
